@@ -45,4 +45,16 @@ public class TrafficHub : Hub
     {
         await Clients.Others.SendAsync("UserLocationUpdate", new { connectionId = Context.ConnectionId, lat, lng, role });
     }
+
+    public async Task ReportHazard(double lat, double lng, string hazardType)
+    {
+        // Broadcast a new hazard to everyone on the map
+        await Clients.All.SendAsync("HazardReported", new {
+            id = Guid.NewGuid().ToString(),
+            lat,
+            lng,
+            type = hazardType,
+            reportedAt = DateTime.UtcNow
+        });
+    }
 }

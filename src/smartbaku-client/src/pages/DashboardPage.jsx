@@ -92,6 +92,8 @@ export default function DashboardPage({ role }) {
   const [activeCrosswalks, setActiveCrosswalks] = useState([]);
   const [showSidebar, setShowSidebar] = useState(false);
   const [mapLayer, setMapLayer] = useState('dark');
+  const [hazards, setHazards] = useState([]);
+  const [showReportModal, setShowReportModal] = useState(false);
   const signalrConn = useRef(null);
 
   useEffect(() => {
@@ -130,9 +132,21 @@ export default function DashboardPage({ role }) {
         setActiveCrosswalks(prev => prev.filter(cw => cw.lat !== data.lat || cw.lng !== data.lng));
         if (role === 'pedestrian') setCrossingState('idle');
       });
+      conn.on('HazardReported', (data) => {
+        setHazards(prev => [...prev, data]);
+        if (navigator.vibrate) navigator.vibrate(200);
+      });
       await conn.invoke('JoinRole', role);
     } catch(e) { console.error('SignalR:', e); }
   }
+
+  const reportHazard = async (type) => {
+    if (!userPos || !signalrConn.current) return;
+    try {
+      await signalrConn.current.invoke('ReportHazard', userPos[0], userPos[1], type);
+      setShowReportModal(false);
+    } catch(e) { console.error(e); }
+  };
 
   useEffect(() => {
     let interval;
@@ -260,6 +274,32 @@ export default function DashboardPage({ role }) {
             </Marker>
           ))}
 
+          {/* Bus Route Visualization (Pedestrian & Driver) */}
+          <Polyline 
+            positions={[
+              [40.3792, 49.8490], [40.3850, 49.8550], [40.3953, 49.8822], [40.4050, 49.8710], [40.4093, 49.8671]
+            ]} 
+            pathOptions={{color: '#8b5cf6', weight: 4, dashArray: '10, 10', opacity: 0.6}} 
+          />
+          <Marker position={[40.4050, 49.8710]} icon={L.divIcon({className:'', html:'<div style="font-size:16px;background:#8b5cf6;color:white;padding:2px 6px;border-radius:4px;font-weight:700">65 Nömrəli</div>', iconSize:[80,20]})}/>
+
+          {/* Hazards */}
+          {hazards.map((h, i) => (
+            <Marker key={`haz-${i}`} position={[h.lat, h.lng]} icon={L.divIcon({
+              className: '',
+              html: `<div style="font-size:32px;filter:drop-shadow(0 0 15px #ef4444);animation:pulse-light 1.5s infinite">⚠️</div>`,
+              iconSize: [32, 32], iconAnchor: [16, 16]
+            })}>
+              <Popup>
+                <div className="ai-popup" style={{color:'#ef4444'}}>
+                  <div className="ai-popup-title" style={{color:'#ef4444'}}>DİQQƏT: TƏHLÜKƏ</div>
+                  <strong>{h.type}</strong><br/>
+                  Sürücülər tərəfindən bildirilib.
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+
           {/* Active crosswalk simulations */}
           {activeCrosswalks.map((cw, idx) => renderCrosswalkVisuals(cw, idx))}
         </MapContainer>
@@ -275,22 +315,52 @@ export default function DashboardPage({ role }) {
           </div>
         </div>
         <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-          {/* Map layer toggle */}
           <button onClick={() => setMapLayer(m => m === 'dark' ? 'satellite' : m === 'satellite' ? 'light' : 'dark')}
-            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:'10px',padding:'8px',cursor:'pointer',fontSize:'16px',color:'white',display:'flex',alignItems:'center'}}>
+            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:'10px',padding:'8px',cursor:'pointer',fontSize:'16px',color:'white'}}>
             {mapLayer === 'dark' ? '🌑' : mapLayer === 'satellite' ? '🛰️' : '☀️'}
           </button>
-          {/* Sidebar toggle */}
           <button onClick={() => setShowSidebar(!showSidebar)}
-            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:'10px',padding:'8px',cursor:'pointer',fontSize:'16px',color:'white',display:'flex',alignItems:'center'}}>
+            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:'10px',padding:'8px',cursor:'pointer',fontSize:'16px',color:'white'}}>
             📊
           </button>
-          {/* Role badge */}
           <div className="badge badge-blue" style={{padding:'6px 12px'}}>
             {role === 'driver' ? '🚗 Sürücü' : '🚶 Piyada'}
           </div>
         </div>
       </div>
+
+      {/* ═══ WEATHER & AQI WIDGET ═══ */}
+      <div className="glass-panel" style={{position:'absolute', top:'88px', left:'16px', padding:'10px 14px', display:'flex', gap:'12px', alignItems:'center', zIndex:500}}>
+        <div style={{display:'flex', alignItems:'center', gap:'6px', paddingRight:'12px', borderRight:'1px solid var(--border)'}}>
+          <span style={{fontSize:'20px'}}>🌤️</span>
+          <div>
+            <div style={{fontSize:'12px', fontWeight:800, color:'white'}}>18°C Qismən Buludlu</div>
+            <div style={{fontSize:'9px', color:'var(--text-secondary)'}}>Səth: Quru</div>
+          </div>
+        </div>
+        <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
+          <span style={{fontSize:'20px'}}>🍃</span>
+          <div>
+            <div style={{fontSize:'12px', fontWeight:800, color:'#34d399'}}>AQI: 42 (Əla)</div>
+            <div style={{fontSize:'9px', color:'var(--text-secondary)'}}>Hava çox təmizdir</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ REPORT HAZARD MODAL ═══ */}
+      {showReportModal && (
+        <div className="modal-overlay" onClick={() => setShowReportModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <h3 style={{fontSize:'16px', fontWeight:800, marginBottom:'16px', color:'white'}}>⚠️ Yolda Təhlükə Bildir</h3>
+            <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+              <button className="btn btn-outline" style={{borderColor:'#ef4444', color:'#f87171'}} onClick={() => reportHazard('💥 Qəza (Dəhşətli)')}>💥 Qəza</button>
+              <button className="btn btn-outline" style={{borderColor:'#f59e0b', color:'#fbbf24'}} onClick={() => reportHazard('🚧 Yol Təmiri / Qazıntı')}>🚧 Yol Təmiri</button>
+              <button className="btn btn-outline" style={{borderColor:'#3b82f6', color:'#60a5fa'}} onClick={() => reportHazard('🌧️ Su Basması')}>🌧️ Su Basması</button>
+            </div>
+            <button className="btn btn-outline" style={{marginTop:'16px', border:'none'}} onClick={() => setShowReportModal(false)}>Ləğv et</button>
+          </div>
+        </div>
+      )}
 
       {/* ═══ SIDEBAR PANEL ═══ */}
       {showSidebar && (
@@ -343,22 +413,29 @@ export default function DashboardPage({ role }) {
 
       {/* ═══ FLOATING CONTROLS ═══ */}
       <div className="floating-controls">
-        {/* Congestion mini for drivers */}
-        {role === 'driver' && congestion.length > 0 && !showSidebar && (
-          <div className="glass-panel" style={{padding:'14px 16px'}} onClick={() => setShowSidebar(true)}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                <span style={{fontSize:'16px'}}>📊</span>
-                <span style={{fontSize:'13px',fontWeight:700,color:'white'}}>Canlı Trafik</span>
+        {/* Driver specific panels */}
+        {role === 'driver' && !showSidebar && (
+          <div style={{display:'flex', gap:'10px', flexDirection:'column'}}>
+            <button className="btn btn-outline" style={{width: '100%', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', padding: '12px'}} onClick={() => setShowReportModal(true)}>
+              ⚠️ Yolda Təhlükə Bildir
+            </button>
+            {congestion.length > 0 && (
+              <div className="glass-panel" style={{padding:'14px 16px'}} onClick={() => setShowSidebar(true)}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                    <span style={{fontSize:'16px'}}>📊</span>
+                    <span style={{fontSize:'13px',fontWeight:700,color:'white'}}>Canlı Trafik</span>
+                  </div>
+                  <div style={{display:'flex',gap:'6px'}}>
+                    {congestion.slice(0,2).map((c,i) => (
+                      <span key={i} className={`badge badge-${c.level === 'critical' ? 'red' : c.level === 'high' ? 'yellow' : 'green'}`} style={{fontSize:'10px',padding:'3px 8px'}}>
+                        {c.currentSpeed}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div style={{display:'flex',gap:'6px'}}>
-                {congestion.slice(0,2).map((c,i) => (
-                  <span key={i} className={`badge badge-${c.level === 'critical' ? 'red' : c.level === 'high' ? 'yellow' : 'green'}`} style={{fontSize:'10px',padding:'3px 8px'}}>
-                    {c.currentSpeed}
-                  </span>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
         )}
 

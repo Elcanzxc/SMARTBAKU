@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\ELCAN\\Downloads\\noname\\src\\SmartBaku.API\\SmartBaku.API.csproj": {}
+    "C:\\Users\\ELCAN\\Downloads\\non\\src\\SmartBaku.API\\SmartBaku.API.csproj": {}
   },
   "projects": {
-    "C:\\Users\\ELCAN\\Downloads\\noname\\src\\SmartBaku.API\\SmartBaku.API.csproj": {
+    "C:\\Users\\ELCAN\\Downloads\\non\\src\\SmartBaku.API\\SmartBaku.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\ELCAN\\Downloads\\noname\\src\\SmartBaku.API\\SmartBaku.API.csproj",
+        "projectUniqueName": "C:\\Users\\ELCAN\\Downloads\\non\\src\\SmartBaku.API\\SmartBaku.API.csproj",
         "projectName": "SmartBaku.API",
-        "projectPath": "C:\\Users\\ELCAN\\Downloads\\noname\\src\\SmartBaku.API\\SmartBaku.API.csproj",
+        "projectPath": "C:\\Users\\ELCAN\\Downloads\\non\\src\\SmartBaku.API\\SmartBaku.API.csproj",
         "packagesPath": "C:\\Users\\ELCAN\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\ELCAN\\Downloads\\noname\\src\\SmartBaku.API\\obj\\",
+        "outputPath": "C:\\Users\\ELCAN\\Downloads\\non\\src\\SmartBaku.API\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -64,6 +64,10 @@
               "version": "[10.0.8, )"
             },
             "Microsoft.EntityFrameworkCore.SqlServer": {
+              "target": "Package",
+              "version": "[10.0.8, )"
+            },
+            "Microsoft.EntityFrameworkCore.Sqlite": {
               "target": "Package",
               "version": "[10.0.8, )"
             },

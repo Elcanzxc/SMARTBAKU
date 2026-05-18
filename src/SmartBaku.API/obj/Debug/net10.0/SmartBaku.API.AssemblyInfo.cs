@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SmartBaku.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f11b8eead57b1a4661301a0c713a07b6bcc08633")]
 [assembly: System.Reflection.AssemblyProductAttribute("SmartBaku.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SmartBaku.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
