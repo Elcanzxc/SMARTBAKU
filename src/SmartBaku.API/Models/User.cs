@@ -3,7 +3,9 @@ namespace SmartBaku.API.Models;
 public class User
 {
     public int Id { get; set; }
-    public string Name { get; set; } = "Istifadəçi";
+    public string Name { get; set; } = "İstifadəçi";
+    public string Email { get; set; } = "";
+    public string Password { get; set; } = "";
     public string Role { get; set; } = "driver"; // driver | pedestrian
     public int EcoPoints { get; set; } = 0;
     public int Level { get; set; } = 1;
@@ -13,6 +15,8 @@ public class User
 public class TrafficRule
 {
     public int Id { get; set; }
+    public string TargetRole { get; set; } = "driver"; // driver | pedestrian
+    public string RuleCategory { get; set; } = "recent"; // recent | location | general
     public string StreetName { get; set; } = "";
     public string Description { get; set; } = "";
     public int SpeedLimit { get; set; }

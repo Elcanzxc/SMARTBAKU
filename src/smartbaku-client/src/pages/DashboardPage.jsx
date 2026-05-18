@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, Polyline, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api } from '../services/api';
 import { startConnection } from '../services/signalr';
 
-// Fix leaflet default icons
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -15,60 +14,90 @@ L.Icon.Default.mergeOptions({
 
 const vehicleIcon = (type) => L.divIcon({
   className: '',
-  html: `<div style="font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))">${
-    type === 'ambulance' ? '🚑' : type === 'bus' ? '🚌' : '🚗'
+  html: `<div style="font-size:28px; filter:drop-shadow(0 3px 8px rgba(0,0,0,0.6))">${
+    type === 'ambulance' ? '🚑' : type === 'bus' ? '🚌' : '🚕'
   }</div>`,
-  iconSize: [28, 28], iconAnchor: [14, 14]
+  iconSize: [32, 32], iconAnchor: [16, 16]
 });
 
 const lightIcon = (phase) => L.divIcon({
   className: '',
-  html: `<div class="traffic-light-dot ${phase}"></div>`,
-  iconSize: [14, 14], iconAnchor: [7, 7]
+  html: `<div style="width:16px;height:16px;border-radius:50%;background:${phase === 'green' ? '#10b981' : phase === 'yellow' ? '#f59e0b' : '#ef4444'};border:2.5px solid white;box-shadow:0 0 14px ${phase === 'green' ? '#10b981' : phase === 'yellow' ? '#f59e0b' : '#ef4444'}, 0 0 40px ${phase === 'green' ? 'rgba(16,185,129,0.5)' : phase === 'yellow' ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.5)'};animation:pulse-light 2s infinite"></div>`,
+  iconSize: [16, 16], iconAnchor: [8, 8]
 });
 
 const crossingIcon = L.divIcon({
   className: '',
-  html: `<div style="font-size:22px">🚸</div>`,
-  iconSize: [24, 24], iconAnchor: [12, 12]
+  html: `<div style="font-size:26px;filter:drop-shadow(0 0 12px rgba(59,130,246,0.7))">🚸</div>`,
+  iconSize: [28, 28], iconAnchor: [14, 14]
 });
 
-function UserLocationMarker() {
+const parkingIcon = (available) => L.divIcon({
+  className: '',
+  html: `<div style="background:${available ? 'rgba(16,185,129,0.9)' : 'rgba(239,68,68,0.9)'};color:white;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:800;border:1.5px solid rgba(255,255,255,0.3);box-shadow:0 4px 12px rgba(0,0,0,0.4);white-space:nowrap">🅿️ ${available ? 'Boş' : 'Dolu'}</div>`,
+  iconSize: [60, 24], iconAnchor: [30, 12]
+});
+
+function UserLocationMarker({ setGlobalPos }) {
   const [pos, setPos] = useState(null);
   const map = useMap();
 
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      const fallback = [40.4093, 49.8671];
+      setPos(fallback); setGlobalPos(fallback);
+      map.setView(fallback, 14);
+      return;
+    }
     const id = navigator.geolocation.watchPosition(
       (p) => {
-        const latlng = [p.coords.latitude, p.coords.longitude];
-        setPos(latlng);
-        map.setView(latlng, map.getZoom());
+        const ll = [p.coords.latitude, p.coords.longitude];
+        setPos(ll); setGlobalPos(ll); map.setView(ll, map.getZoom());
       },
-      () => {}, { enableHighAccuracy: true }
+      () => {
+        const ll = [40.4093, 49.8671];
+        setPos(ll); setGlobalPos(ll); map.setView(ll, 14);
+      },
+      { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(id);
-  }, [map]);
+  }, [map, setGlobalPos]);
 
   return pos ? (
-    <Circle center={pos} radius={30} pathOptions={{ color: '#00d4ff', fillColor: '#00d4ff', fillOpacity: 0.3 }}>
-      <Popup>Sizin məkanınız</Popup>
-    </Circle>
+    <>
+      <Circle center={pos} radius={60} pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.12, weight: 1 }} />
+      <CircleMarker center={pos} radius={7} pathOptions={{ color: '#fff', fillColor: '#3b82f6', fillOpacity: 1, weight: 3 }}>
+        <Popup><strong>📍 Sizin mövqeyiniz</strong></Popup>
+      </CircleMarker>
+    </>
   ) : null;
 }
+
+// ─── Smart parking data ───
+const PARKING_SPOTS = [
+  { lat: 40.3920, lng: 49.8650, name: 'Gənclik Parkinq', spots: 3, total: 20 },
+  { lat: 40.3850, lng: 49.8550, name: '28 May Parkinq', spots: 0, total: 15 },
+  { lat: 40.4050, lng: 49.8710, name: 'Nəriman Nərimanov', spots: 7, total: 25 },
+  { lat: 40.3700, lng: 49.8370, name: 'Sahil Parkinq', spots: 1, total: 10 },
+];
 
 export default function DashboardPage({ role }) {
   const [vehicles, setVehicles] = useState([]);
   const [lights, setLights] = useState([]);
   const [crossings, setCrossings] = useState([]);
   const [congestion, setCongestion] = useState([]);
-  const [crossingState, setCrossingState] = useState('idle'); // idle | waiting | granted
+  const [crossingState, setCrossingState] = useState('idle');
   const [crossingTimer, setCrossingTimer] = useState(0);
+  const [userPos, setUserPos] = useState(null);
+  const [activeCrosswalks, setActiveCrosswalks] = useState([]);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [mapLayer, setMapLayer] = useState('dark');
+  const signalrConn = useRef(null);
 
   useEffect(() => {
     loadData();
     connectSignalR();
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(loadData, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -78,64 +107,123 @@ export default function DashboardPage({ role }) {
         api.getVehicles(), api.getTrafficLights(), api.getCrossings(), api.getCongestion()
       ]);
       setVehicles(v); setLights(l); setCrossings(cr); setCongestion(co);
-    } catch(e) { console.error('Load error:', e); }
+    } catch(e) { console.error('Load:', e); }
   }
 
   async function connectSignalR() {
     try {
       const conn = await startConnection();
+      signalrConn.current = conn;
       conn.on('SimulationUpdate', (data) => {
         if (data.vehicles) setVehicles(data.vehicles);
         if (data.trafficLights) setLights(data.trafficLights);
       });
-      conn.on('CrossingGranted', () => {
-        setCrossingState('granted');
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        setTimeout(() => setCrossingState('idle'), 5000);
+      conn.on('CrossingRequested', (data) => {
+        setActiveCrosswalks(prev => [...prev, { ...data, status: 'waiting' }]);
+        if (role === 'pedestrian') { setCrossingState('waiting'); setCrossingTimer(data.waitTime || 5); }
+      });
+      conn.on('CrossingGranted', (data) => {
+        setActiveCrosswalks(prev => prev.map(cw => cw.lat === data.lat && cw.lng === data.lng ? { ...cw, status: 'granted' } : cw));
+        if (role === 'pedestrian') { setCrossingState('granted'); if (navigator.vibrate) navigator.vibrate([200, 100, 200]); }
+      });
+      conn.on('CrossingEnded', (data) => {
+        setActiveCrosswalks(prev => prev.filter(cw => cw.lat !== data.lat || cw.lng !== data.lng));
+        if (role === 'pedestrian') setCrossingState('idle');
       });
       await conn.invoke('JoinRole', role);
-    } catch(e) { console.error('SignalR error:', e); }
+    } catch(e) { console.error('SignalR:', e); }
   }
 
-  const handleCrossingRequest = () => {
-    setCrossingState('waiting');
-    const wait = 10 + Math.floor(Math.random() * 16);
-    setCrossingTimer(wait);
-    const interval = setInterval(() => {
-      setCrossingTimer(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setCrossingState('granted');
-          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-          setTimeout(() => setCrossingState('idle'), 5000);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  useEffect(() => {
+    let interval;
+    if (crossingState === 'waiting' && crossingTimer > 0) {
+      interval = setInterval(() => setCrossingTimer(t => t - 1), 1000);
+    }
+    if (crossingState === 'waiting' && crossingTimer <= 0) {
+      setCrossingState('granted');
+      setActiveCrosswalks(prev => prev.map(cw => ({ ...cw, status: 'granted' })));
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      setTimeout(() => { setCrossingState('idle'); setActiveCrosswalks([]); }, 12000);
+    }
+    return () => clearInterval(interval);
+  }, [crossingState, crossingTimer]);
+
+  const handleCrossingRequest = async () => {
+    if (crossingState !== 'idle' || !userPos) return;
+    try {
+      if (signalrConn.current) {
+        await signalrConn.current.invoke('RequestCrossing', userPos[0], userPos[1]);
+      } else {
+        setCrossingState('waiting');
+        setCrossingTimer(5);
+        setActiveCrosswalks(prev => [...prev, { lat: userPos[0], lng: userPos[1], status: 'waiting' }]);
+      }
+    } catch (e) {
+      setCrossingState('waiting');
+      setCrossingTimer(5);
+      setActiveCrosswalks(prev => [...prev, { lat: userPos[0], lng: userPos[1], status: 'waiting' }]);
+    }
   };
 
-  return (
-    <div className="page">
-      <div className="header-bar">
-        <h1 className="page-title">🚦 SmartBaku</h1>
-        <span className="badge badge-blue">{role === 'driver' ? '🚗 Sürücü' : '🚶 Piyada'}</span>
+  const renderCrosswalkVisuals = (cw, idx) => {
+    const { lat, lng, status } = cw;
+    const isGranted = status === 'granted';
+    const color = isGranted ? '#10b981' : '#ef4444';
+    const stripes = [];
+    for (let i = -3; i <= 3; i++) {
+      stripes.push(
+        <Polyline key={`stripe-${idx}-${i}`}
+          positions={[[lat + i * 0.00008, lng - 0.00025], [lat + i * 0.00008, lng + 0.00025]]}
+          pathOptions={{ color: 'white', weight: 5, opacity: isGranted ? 0.95 : 0.5 }} />
+      );
+    }
+    return (
+      <div key={`cw-${idx}`}>
+        {stripes}
+        <Circle center={[lat, lng]} radius={25} pathOptions={{ color, fillColor: color, fillOpacity: 0.25, weight: 2 }} />
+        {/* Traffic light simulation */}
+        <Marker position={[lat + 0.0003, lng - 0.0004]} icon={L.divIcon({
+          className: '',
+          html: `<div style="background:rgba(0,0,0,0.85);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:4px;align-items:center;border:2px solid rgba(255,255,255,0.2);box-shadow:0 6px 20px rgba(0,0,0,0.6)">
+            <div style="width:14px;height:14px;border-radius:50%;background:${!isGranted ? '#ef4444' : '#333'};box-shadow:${!isGranted ? '0 0 12px #ef4444' : 'none'}"></div>
+            <div style="width:14px;height:14px;border-radius:50%;background:${isGranted ? 'transparent' : '#f59e0b'};box-shadow:${!isGranted ? '0 0 8px #f59e0b' : 'none'}"></div>
+            <div style="width:14px;height:14px;border-radius:50%;background:${isGranted ? '#10b981' : '#333'};box-shadow:${isGranted ? '0 0 12px #10b981' : 'none'}"></div>
+          </div>`,
+          iconSize: [30, 60], iconAnchor: [15, 30]
+        })} />
+        {/* Status label */}
+        <Marker position={[lat - 0.0003, lng]} icon={L.divIcon({
+          className: '',
+          html: `<div style="background:${color};color:white;padding:6px 14px;border-radius:10px;font-weight:800;font-size:12px;white-space:nowrap;box-shadow:0 6px 16px rgba(0,0,0,0.5);font-family:Inter,sans-serif;letter-spacing:0.3px;border:1.5px solid rgba(255,255,255,0.2)">${isGranted ? '✅ Keçə bilərsiniz!' : '🛑 Gözləyin...'}</div>`,
+          iconSize: [140, 30], iconAnchor: [70, 15]
+        })} />
       </div>
+    );
+  };
 
-      <div className="map-container">
-        <MapContainer center={[40.4093, 49.8671]} zoom={13} scrollWheelZoom={true}>
-          <TileLayer
-            attribution='&copy; OpenStreetMap'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <UserLocationMarker />
+  const tiles = {
+    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  };
+
+  const greenCount = lights.filter(l => l.currentPhase === 'green').length;
+  const redCount = lights.filter(l => l.currentPhase === 'red').length;
+
+  return (
+    <div className="dashboard-fullscreen">
+      {/* ═══ MAP ═══ */}
+      <div className="map-absolute">
+        <MapContainer center={[40.4093, 49.8671]} zoom={14} scrollWheelZoom={true} zoomControl={false} style={{height:'100%',width:'100%'}}>
+          <TileLayer url={tiles[mapLayer]} />
+          <UserLocationMarker setGlobalPos={setUserPos} />
 
           {vehicles.map(v => (
             <Marker key={`v-${v.id}`} position={[v.lat, v.lng]} icon={vehicleIcon(v.type)}>
               <Popup>
                 <div className="ai-popup">
-                  <div className="ai-popup-title">{v.type === 'ambulance' ? '🚑 Təcili Yardım' : v.type === 'bus' ? '🚌 Avtobus' : '🚗 Avtomobil'}</div>
-                  Sürət: {v.speed} km/s
+                  <div className="ai-popup-title">{v.type === 'ambulance' ? '🚑 TƏCİLİ YARDIM' : v.type === 'bus' ? '🚌 AVTOBUS' : '🚕 AVTOMOBIL'}</div>
+                  <div style={{marginTop:'4px'}}>Sürət: <strong>{Math.round(v.speed)} km/s</strong></div>
                 </div>
               </Popup>
             </Marker>
@@ -145,63 +233,157 @@ export default function DashboardPage({ role }) {
             <Marker key={`l-${l.id}`} position={[l.lat, l.lng]} icon={lightIcon(l.currentPhase)}>
               <Popup>
                 <div className="ai-popup">
-                  <div className="ai-popup-title">🤖 Süni İntellekt Qərarı</div>
-                  <strong>{l.intersectionName}</strong><br/>
-                  {l.aiDecision}
+                  <div className="ai-popup-title">🤖 AI İŞIQFOR NƏZARƏTİ</div>
+                  <strong>{l.intersectionName}</strong>
+                  <div style={{marginTop:'4px',fontSize:'12px'}}>{l.aiDecision}</div>
                 </div>
               </Popup>
             </Marker>
           ))}
 
+          {/* Parking spots for drivers */}
+          {role === 'driver' && PARKING_SPOTS.map((p, i) => (
+            <Marker key={`park-${i}`} position={[p.lat, p.lng]} icon={parkingIcon(p.spots > 0)}>
+              <Popup>
+                <div className="ai-popup">
+                  <div className="ai-popup-title">🅿️ {p.name}</div>
+                  <div style={{marginTop:'4px'}}>{p.spots > 0 ? `${p.spots}/${p.total} boş yer` : 'Yer yoxdur!'}</div>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+
+          {/* Pedestrian crossings */}
           {role === 'pedestrian' && crossings.map(c => (
             <Marker key={`c-${c.id}`} position={[c.lat, c.lng]} icon={crossingIcon}>
               <Popup><strong>{c.name}</strong><br/>Ağıllı keçid mövcuddur</Popup>
             </Marker>
           ))}
+
+          {/* Active crosswalk simulations */}
+          {activeCrosswalks.map((cw, idx) => renderCrosswalkVisuals(cw, idx))}
         </MapContainer>
       </div>
 
-      {/* Traffic congestion list */}
-      {role === 'driver' && congestion.length > 0 && (
-        <div className="card">
-          <h3 style={{fontSize:'14px',fontWeight:700,marginBottom:'10px'}}>📊 Canlı Tıxac Vəziyyəti</h3>
-          {congestion.slice(0,5).map((c, i) => (
-            <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid var(--border)'}}>
-              <span style={{fontSize:'13px'}}>{c.name}</span>
-              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                <span style={{fontSize:'12px',color:'var(--text-muted)'}}>{c.currentSpeed} km/s</span>
-                <span className={`badge badge-${c.level === 'critical' ? 'red' : c.level === 'high' ? 'yellow' : c.level === 'medium' ? 'blue' : 'green'}`}>
-                  {c.level === 'critical' ? 'Çox sıx' : c.level === 'high' ? 'Sıx' : c.level === 'medium' ? 'Orta' : 'Sərbəst'}
-                </span>
-              </div>
+      {/* ═══ FLOATING HEADER ═══ */}
+      <div className="floating-header glass-panel">
+        <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+          <div style={{fontSize:'22px'}}>🚦</div>
+          <div>
+            <div style={{fontSize:'16px',fontWeight:900,color:'white',letterSpacing:'-0.3px'}}>SmartBaku</div>
+            <div style={{fontSize:'10px',color:'var(--text-secondary)',fontWeight:600}}>AI Trafik İdarəetmə</div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+          {/* Map layer toggle */}
+          <button onClick={() => setMapLayer(m => m === 'dark' ? 'satellite' : m === 'satellite' ? 'light' : 'dark')}
+            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:'10px',padding:'8px',cursor:'pointer',fontSize:'16px',color:'white',display:'flex',alignItems:'center'}}>
+            {mapLayer === 'dark' ? '🌑' : mapLayer === 'satellite' ? '🛰️' : '☀️'}
+          </button>
+          {/* Sidebar toggle */}
+          <button onClick={() => setShowSidebar(!showSidebar)}
+            style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:'10px',padding:'8px',cursor:'pointer',fontSize:'16px',color:'white',display:'flex',alignItems:'center'}}>
+            📊
+          </button>
+          {/* Role badge */}
+          <div className="badge badge-blue" style={{padding:'6px 12px'}}>
+            {role === 'driver' ? '🚗 Sürücü' : '🚶 Piyada'}
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ SIDEBAR PANEL ═══ */}
+      {showSidebar && (
+        <div className="floating-panel-left glass-panel" style={{padding:'16px',animation:'slideIn 0.3s ease'}}>
+          <h3 style={{fontSize:'14px',fontWeight:800,marginBottom:'14px',color:'white'}}>📊 Canlı Statistika</h3>
+          
+          {/* Traffic light stats */}
+          <div style={{display:'flex',gap:'8px',marginBottom:'14px'}}>
+            <div style={{flex:1,background:'rgba(16,185,129,0.1)',borderRadius:'10px',padding:'10px',textAlign:'center',border:'1px solid rgba(16,185,129,0.2)'}}>
+              <div style={{fontSize:'20px',fontWeight:900,color:'#34d399'}}>{greenCount}</div>
+              <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:600}}>YAŞIL</div>
+            </div>
+            <div style={{flex:1,background:'rgba(239,68,68,0.1)',borderRadius:'10px',padding:'10px',textAlign:'center',border:'1px solid rgba(239,68,68,0.2)'}}>
+              <div style={{fontSize:'20px',fontWeight:900,color:'#f87171'}}>{redCount}</div>
+              <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:600}}>QIRMIZI</div>
+            </div>
+            <div style={{flex:1,background:'rgba(59,130,246,0.1)',borderRadius:'10px',padding:'10px',textAlign:'center',border:'1px solid rgba(59,130,246,0.2)'}}>
+              <div style={{fontSize:'20px',fontWeight:900,color:'#60a5fa'}}>{vehicles.length}</div>
+              <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:600}}>NƏQLİYYAT</div>
+            </div>
+          </div>
+
+          {/* Congestion */}
+          <h4 style={{fontSize:'12px',fontWeight:700,marginBottom:'10px',color:'var(--text-secondary)'}}>🔴 Tıxac Xəritəsi</h4>
+          {congestion.slice(0, 5).map((c, i) => (
+            <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:'12px'}}>
+              <span style={{color:'var(--text-secondary)',fontWeight:500}}>{c.name}</span>
+              <span className={`badge badge-${c.level === 'critical' ? 'red' : c.level === 'high' ? 'yellow' : 'green'}`} style={{fontSize:'10px',padding:'3px 8px'}}>
+                {c.currentSpeed} km/s
+              </span>
             </div>
           ))}
+
+          {/* Parking for drivers */}
+          {role === 'driver' && (
+            <>
+              <h4 style={{fontSize:'12px',fontWeight:700,marginTop:'14px',marginBottom:'10px',color:'var(--text-secondary)'}}>🅿️ Parkinq</h4>
+              {PARKING_SPOTS.map((p, i) => (
+                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',fontSize:'12px'}}>
+                  <span style={{color:'var(--text-secondary)'}}>{p.name}</span>
+                  <span style={{fontWeight:800,color: p.spots > 0 ? '#34d399' : '#f87171'}}>{p.spots}/{p.total}</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          <button className="btn btn-outline btn-sm" style={{marginTop:'14px'}} onClick={() => setShowSidebar(false)}>Bağla</button>
         </div>
       )}
 
-      {/* Pedestrian crossing button */}
-      {role === 'pedestrian' && (
-        <div>
-          <button
-            className={`crossing-btn ${crossingState}`}
-            onClick={crossingState === 'idle' ? handleCrossingRequest : undefined}
-            disabled={crossingState !== 'idle'}
-            id="crossing-request-btn"
-          >
-            <div className="icon">
-              {crossingState === 'idle' ? '🚶' : crossingState === 'waiting' ? '⏳' : '✅'}
+      {/* ═══ FLOATING CONTROLS ═══ */}
+      <div className="floating-controls">
+        {/* Congestion mini for drivers */}
+        {role === 'driver' && congestion.length > 0 && !showSidebar && (
+          <div className="glass-panel" style={{padding:'14px 16px'}} onClick={() => setShowSidebar(true)}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                <span style={{fontSize:'16px'}}>📊</span>
+                <span style={{fontSize:'13px',fontWeight:700,color:'white'}}>Canlı Trafik</span>
+              </div>
+              <div style={{display:'flex',gap:'6px'}}>
+                {congestion.slice(0,2).map((c,i) => (
+                  <span key={i} className={`badge badge-${c.level === 'critical' ? 'red' : c.level === 'high' ? 'yellow' : 'green'}`} style={{fontSize:'10px',padding:'3px 8px'}}>
+                    {c.currentSpeed}
+                  </span>
+                ))}
+              </div>
             </div>
-            {crossingState === 'idle' && 'Keçid Tələb Et'}
-            {crossingState === 'waiting' && `Gözləyin... ${crossingTimer}s`}
-            {crossingState === 'granted' && 'Keçə bilərsiniz!'}
+          </div>
+        )}
+
+        {/* Pedestrian crossing button */}
+        {role === 'pedestrian' && (
+          <button
+            className={`crossing-btn-massive ${crossingState}`}
+            onClick={crossingState === 'idle' ? handleCrossingRequest : undefined}
+            disabled={crossingState !== 'idle' || !userPos}
+          >
+            <div style={{fontSize:'36px',marginBottom:'8px'}}>
+              {crossingState === 'idle' ? '🚶‍♂️' : crossingState === 'waiting' ? '⏳' : '✅'}
+            </div>
+            <div style={{fontWeight:800,fontSize:'18px',letterSpacing:'-0.3px'}}>
+              {crossingState === 'idle' && 'Yolu Keçmək Tələb Et'}
+              {crossingState === 'waiting' && `Sürücülər saxlayır... ${crossingTimer}s`}
+              {crossingState === 'granted' && 'Təhlükəsiz Keçə Bilərsiniz!'}
+            </div>
+            <div style={{fontSize:'12px',marginTop:'6px',opacity:0.8,fontWeight:500}}>
+              {crossingState === 'idle' && 'Piyada keçidini aktivləşdirmək üçün basın'}
+              {crossingState === 'granted' && 'İşıqfor yaşıl rəngdədir'}
+            </div>
           </button>
-          {crossingState === 'granted' && (
-            <p style={{textAlign:'center',color:'var(--accent-green)',fontWeight:600,fontSize:'14px'}}>
-              ✅ İşıqfor yaşıl yandı. Təhlükəsiz keçə bilərsiniz!
-            </p>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

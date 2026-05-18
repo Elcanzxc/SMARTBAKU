@@ -53,7 +53,8 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     if (db.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
     {
-        db.Database.EnsureCreated();
+        db.Database.EnsureDeleted(); // Automatically drops old DB
+        db.Database.EnsureCreated(); // Recreates with new schema
     }
     else
     {

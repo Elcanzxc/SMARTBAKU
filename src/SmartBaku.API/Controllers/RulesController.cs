@@ -13,12 +13,27 @@ public class RulesController : ControllerBase
     public RulesController(AppDbContext db) => _db = db;
 
     [HttpGet]
-    public async Task<IActionResult> GetRules()
+    public async Task<IActionResult> GetRules([FromQuery] string role = "driver")
     {
+        var now = DateTime.UtcNow;
         var rules = await _db.TrafficRules
+            .Where(r => r.TargetRole == role && r.ActiveFrom <= now && (r.ActiveTo == null || r.ActiveTo >= now))
             .OrderByDescending(r => r.ActiveFrom)
             .ToListAsync();
-        return Ok(rules);
+            
+        if (role == "driver")
+        {
+            return Ok(new {
+                recent = rules.Where(r => r.RuleCategory == "recent").ToList(),
+                location = rules.Where(r => r.RuleCategory == "location").ToList()
+            });
+        }
+        else
+        {
+            return Ok(new {
+                pedestrian = rules.ToList()
+            });
+        }
     }
 
     [HttpGet("active")]
@@ -28,16 +43,6 @@ public class RulesController : ControllerBase
         var rules = await _db.TrafficRules
             .Where(r => r.ActiveFrom <= now && (r.ActiveTo == null || r.ActiveTo >= now))
             .OrderByDescending(r => r.ActiveFrom)
-            .ToListAsync();
-        return Ok(rules);
-    }
-
-    [HttpGet("street/{streetName}")]
-    public async Task<IActionResult> GetRulesForStreet(string streetName)
-    {
-        var now = DateTime.UtcNow;
-        var rules = await _db.TrafficRules
-            .Where(r => r.StreetName.ToLower().Contains(streetName.ToLower()) && r.ActiveFrom <= now && (r.ActiveTo == null || r.ActiveTo >= now))
             .ToListAsync();
         return Ok(rules);
     }

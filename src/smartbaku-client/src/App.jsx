@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import RoleSelectPage from './pages/RoleSelectPage';
+import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import NavigationPage from './pages/NavigationPage';
 import RulesPage from './pages/RulesPage';
@@ -8,16 +8,25 @@ import ProfilePage from './pages/ProfilePage';
 import './index.css';
 
 function App() {
-  const [role, setRole] = useState(localStorage.getItem('smartbaku_role'));
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('smartbaku_user');
+    return saved ? JSON.parse(saved) : null;
+  });
 
-  const handleRoleSelect = (r) => {
-    localStorage.setItem('smartbaku_role', r);
-    setRole(r);
+  const handleLogin = (userData) => {
+    setUser(userData);
   };
 
-  if (!role) {
-    return <RoleSelectPage onSelect={handleRoleSelect} />;
+  const handleLogout = () => {
+    localStorage.removeItem('smartbaku_user');
+    setUser(null);
+  };
+
+  if (!user) {
+    return <AuthPage onLogin={handleLogin} />;
   }
+
+  const role = user.role;
 
   return (
     <BrowserRouter>
@@ -25,7 +34,7 @@ function App() {
         <Route path="/" element={<DashboardPage role={role} />} />
         <Route path="/navigation" element={<NavigationPage role={role} />} />
         <Route path="/rules" element={<RulesPage role={role} />} />
-        <Route path="/profile" element={<ProfilePage role={role} onRoleChange={handleRoleSelect} />} />
+        <Route path="/profile" element={<ProfilePage user={user} onLogout={handleLogout} />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
 

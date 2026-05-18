@@ -66,24 +66,32 @@ public static class SeedData
 
         // Traffic rules
         db.TrafficRules.AddRange(
-            new TrafficRule { StreetName = "Ziya Bünyadov prospekti", Description = "Təmir işlərinə görə sürət həddi endirildi",
+            // Car: Recent changes
+            new TrafficRule { TargetRole = "driver", RuleCategory = "recent", StreetName = "Ziya Bünyadov prospekti", Description = "Təmir işlərinə görə sürət həddi endirildi (Son 3 gün)",
                 SpeedLimit = 60, PreviousSpeedLimit = 80, IsTemporary = true, Reason = "Yol təmiri", RadarActive = true,
                 ActiveFrom = DateTime.UtcNow.AddDays(-3), ActiveTo = DateTime.UtcNow.AddDays(14) },
-            new TrafficRule { StreetName = "Neftçilər prospekti", Description = "Yağış səbəbilə sürət həddi müvəqqəti azaldılıb",
-                SpeedLimit = 50, PreviousSpeedLimit = 60, IsTemporary = true, Reason = "Hava şəraiti", RadarActive = true,
-                ActiveFrom = DateTime.UtcNow.AddHours(-6), ActiveTo = DateTime.UtcNow.AddHours(12) },
-            new TrafficRule { StreetName = "Heydər Əliyev prospekti", Description = "Yeni avtobus zolağı əlavə edildi. Sağ zolaq yalnız avtobuslar üçündür",
-                SpeedLimit = 80, PreviousSpeedLimit = 80, IsTemporary = false, Reason = "Yeni qayda", RadarActive = false,
-                ActiveFrom = DateTime.UtcNow.AddDays(-30) },
-            new TrafficRule { StreetName = "Babək prospekti", Description = "Gecə saatlarında sürət həddi artırıldı (22:00-06:00)",
-                SpeedLimit = 90, PreviousSpeedLimit = 80, IsTemporary = true, Reason = "Gecə rejimi", RadarActive = false,
-                ActiveFrom = DateTime.UtcNow },
-            new TrafficRule { StreetName = "28 May küçəsi", Description = "Məktəb zonası — sürət həddi endirildi",
-                SpeedLimit = 30, PreviousSpeedLimit = 40, IsTemporary = false, Reason = "Məktəb zonası", RadarActive = true,
-                ActiveFrom = DateTime.UtcNow.AddDays(-60) },
-            new TrafficRule { StreetName = "Tbilisi prospekti", Description = "Sol zolaqda qəza — yol daraldılıb",
-                SpeedLimit = 40, PreviousSpeedLimit = 70, IsTemporary = true, Reason = "Qəza", RadarActive = false,
-                ActiveFrom = DateTime.UtcNow.AddHours(-2), ActiveTo = DateTime.UtcNow.AddHours(4) }
+            new TrafficRule { TargetRole = "driver", RuleCategory = "recent", StreetName = "Heydər Əliyev prospekti", Description = "Yeni avtobus zolağı istifadəyə verildi",
+                SpeedLimit = 80, PreviousSpeedLimit = 80, IsTemporary = false, Reason = "Yeni zolaq", RadarActive = false,
+                ActiveFrom = DateTime.UtcNow.AddDays(-2) },
+            
+            // Car: Location-specific
+            new TrafficRule { TargetRole = "driver", RuleCategory = "location", StreetName = "Neftçilər prospekti", Description = "Bu ərazidə parkinq qadağandır. Radar nəzarəti var.",
+                SpeedLimit = 60, PreviousSpeedLimit = 60, IsTemporary = false, Reason = "Parkinq qadağası", RadarActive = true,
+                ActiveFrom = DateTime.UtcNow.AddYears(-1) },
+            new TrafficRule { TargetRole = "driver", RuleCategory = "location", StreetName = "Tbilisi prospekti", Description = "Növbəti kəsişmədə sağa dönmək qadağandır",
+                SpeedLimit = 70, PreviousSpeedLimit = 70, IsTemporary = false, Reason = "Hərəkət sxemi", RadarActive = false,
+                ActiveFrom = DateTime.UtcNow.AddYears(-1) },
+            
+            // Pedestrian rules
+            new TrafficRule { TargetRole = "pedestrian", RuleCategory = "general", StreetName = "Nizami küçəsi", Description = "Yalnız piyadalar üçün nəzərdə tutulmuş zona",
+                SpeedLimit = 0, PreviousSpeedLimit = 0, IsTemporary = false, Reason = "Piyada zonası", RadarActive = false,
+                ActiveFrom = DateTime.UtcNow.AddYears(-5) },
+            new TrafficRule { TargetRole = "pedestrian", RuleCategory = "general", StreetName = "Sahil bağı", Description = "Velosiped və skuterlərin piyada zolağına daxil olması qadağandır",
+                SpeedLimit = 0, PreviousSpeedLimit = 0, IsTemporary = false, Reason = "Təhlükəsizlik", RadarActive = false,
+                ActiveFrom = DateTime.UtcNow.AddMonths(-2) },
+            new TrafficRule { TargetRole = "pedestrian", RuleCategory = "location", StreetName = "28 May küçəsi", Description = "Təmir səbəbindən piyada keçidi 50 metr irəli çəkilib",
+                SpeedLimit = 0, PreviousSpeedLimit = 0, IsTemporary = true, Reason = "Yol təmiri", RadarActive = false,
+                ActiveFrom = DateTime.UtcNow.AddDays(-1), ActiveTo = DateTime.UtcNow.AddDays(10) }
         );
 
         // Coupons

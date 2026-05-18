@@ -15,7 +15,20 @@ const BAKU_PLACES = [
   { name: 'Dənizkənarı Milli Park', lat: 40.3570, lng: 49.8400 },
   { name: 'Yasamal', lat: 40.3900, lng: 49.8300 },
   { name: 'Nəsimi bazarı', lat: 40.4100, lng: 49.8750 },
+  { name: 'İçərişəhər', lat: 40.3663, lng: 49.8373 },
+  { name: 'Xətai metrosu', lat: 40.3877, lng: 49.8530 },
 ];
+
+const startIcon = L.divIcon({
+  className: '',
+  html: '<div style="font-size:24px;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5))">📍</div>',
+  iconSize: [24, 24], iconAnchor: [12, 24]
+});
+const endIcon = L.divIcon({
+  className: '',
+  html: '<div style="font-size:24px;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5))">🏁</div>',
+  iconSize: [24, 24], iconAnchor: [12, 24]
+});
 
 export default function NavigationPage() {
   const [fromPlace, setFromPlace] = useState('');
@@ -27,20 +40,12 @@ export default function NavigationPage() {
   const [routeLine, setRouteLine] = useState([]);
 
   const searchPlaces = (query) => {
-    if (!query) return [];
+    if (!query || query.length < 1) return [];
     return BAKU_PLACES.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
   };
 
-  const handleFromChange = (val) => {
-    setFromPlace(val);
-    setFromSuggestions(searchPlaces(val));
-  };
-
-  const handleToChange = (val) => {
-    setToPlace(val);
-    setToSuggestions(searchPlaces(val));
-  };
-
+  const handleFromChange = (val) => { setFromPlace(val); setFromSuggestions(searchPlaces(val)); };
+  const handleToChange = (val) => { setToPlace(val); setToSuggestions(searchPlaces(val)); };
   const selectFrom = (place) => { setFromPlace(place.name); setFromSuggestions([]); };
   const selectTo = (place) => { setToPlace(place.name); setToSuggestions([]); };
 
@@ -55,8 +60,8 @@ export default function NavigationPage() {
       setRouteResult(result);
       setRouteLine([[from.lat, from.lng], [to.lat, to.lng]]);
     } catch(e) {
-      // Fallback simulation
       const dist = Math.random() * 10 + 2;
+      const greenLights = Math.floor(dist);
       setRouteResult({
         distanceKm: dist.toFixed(1),
         normalTimeMinutes: Math.round(dist * 2.5),
@@ -65,112 +70,124 @@ export default function NavigationPage() {
           optimalSpeed: 48,
           timeSavedMinutes: Math.round(dist * 0.7),
           fuelSavedPercent: 12,
-          greenLightsCount: Math.floor(dist),
-          message: `Sürəti 48 km/s etsəniz, növbəti ${Math.floor(dist)} işıqfordan dayanmadan keçəcəksiniz. Bu, sizə ${Math.round(dist*0.7)} dəqiqə və 12% yanacaq qənaəti verəcək.`
+          greenLightsCount: greenLights,
+          co2Saved: (dist * 0.15).toFixed(1),
+          message: `Sürəti 48 km/s etsəniz, növbəti ${greenLights} işıqfordan dayanmadan keçəcəksiniz.`
         },
-        trafficLightsOnRoute: Math.floor(dist)
+        trafficLightsOnRoute: greenLights
       });
-      setRouteLine([[from.lat, from.lng], [to.lat, to.lng]]);
+      // Generate intermediate points for a more realistic route line
+      const midLat = (from.lat + to.lat) / 2 + (Math.random() - 0.5) * 0.01;
+      const midLng = (from.lng + to.lng) / 2 + (Math.random() - 0.5) * 0.01;
+      setRouteLine([[from.lat, from.lng], [midLat, midLng], [to.lat, to.lng]]);
     }
     setLoading(false);
   };
 
   return (
-    <div className="page">
-      <h1 className="page-title">🧭 Ağıllı Naviqasiya</h1>
-
-      <div className="card">
-        <div className="input-group">
-          <label>📍 Başlanğıc nöqtə</label>
-          <input className="input-field" placeholder="Məkan yazın..." value={fromPlace}
-            onChange={e => handleFromChange(e.target.value)} id="nav-from" />
-          {fromSuggestions.length > 0 && (
-            <div style={{background:'var(--bg-secondary)',borderRadius:'8px',marginTop:'4px',overflow:'hidden'}}>
-              {fromSuggestions.map((p,i) => (
-                <div key={i} onClick={() => selectFrom(p)}
-                  style={{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:'13px'}}
-                  onMouseEnter={e => e.target.style.background='var(--bg-card)'}
-                  onMouseLeave={e => e.target.style.background='transparent'}>
-                  📍 {p.name}
-                </div>
-              ))}
-            </div>
+    <div className="dashboard-fullscreen">
+      {/* ═══ FULLSCREEN MAP ═══ */}
+      <div className="map-absolute">
+        <MapContainer center={[40.3900, 49.8600]} zoom={13} zoomControl={false} style={{height: '100%', width: '100%'}}>
+          <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+          {routeLine.length >= 2 && (
+            <>
+              <Marker position={routeLine[0]} icon={startIcon}><Popup>Başlanğıc</Popup></Marker>
+              <Marker position={routeLine[routeLine.length - 1]} icon={endIcon}><Popup>Mənzil</Popup></Marker>
+              <Polyline positions={routeLine} pathOptions={{color: '#3b82f6', weight: 5, opacity: 0.9}} />
+              <Polyline positions={routeLine} pathOptions={{color: '#60a5fa', weight: 2, opacity: 0.6, dashArray: '8 12'}} />
+            </>
           )}
-        </div>
-        <div className="input-group">
-          <label>🏁 Son nöqtə</label>
-          <input className="input-field" placeholder="Məkan yazın..." value={toPlace}
-            onChange={e => handleToChange(e.target.value)} id="nav-to" />
-          {toSuggestions.length > 0 && (
-            <div style={{background:'var(--bg-secondary)',borderRadius:'8px',marginTop:'4px',overflow:'hidden'}}>
-              {toSuggestions.map((p,i) => (
-                <div key={i} onClick={() => selectTo(p)}
-                  style={{padding:'10px 12px',cursor:'pointer',borderBottom:'1px solid var(--border)',fontSize:'13px'}}
-                  onMouseEnter={e => e.target.style.background='var(--bg-card)'}
-                  onMouseLeave={e => e.target.style.background='transparent'}>
-                  🏁 {p.name}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <button className="btn btn-primary" onClick={calculateRoute} disabled={loading} id="calc-route-btn">
-          {loading ? '⏳ Hesablanır...' : '🔍 Marşrutu Hesabla'}
-        </button>
+        </MapContainer>
       </div>
 
+      {/* ═══ HEADER ═══ */}
+      <div className="floating-header glass-panel">
+        <div style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+          <div style={{fontSize: '22px'}}>🧭</div>
+          <div>
+            <div style={{fontSize: '16px', fontWeight: 900, color: 'white'}}>AI Naviqasiya</div>
+            <div style={{fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600}}>Yaşıl Dalğa Texnologiyası</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ INPUT PANEL ═══ */}
+      <div className="floating-controls" style={{bottom: routeResult ? '250px' : '90px', transition: 'bottom 0.5s ease'}}>
+        <div className="glass-panel" style={{padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+          <div style={{position: 'relative'}}>
+            <input className="input-field" placeholder="📍 Haradan gedirsən?" value={fromPlace}
+              onChange={e => handleFromChange(e.target.value)} />
+            {fromSuggestions.length > 0 && (
+              <div style={{position: 'absolute', bottom: '100%', left: 0, right: 0, background: 'rgba(15,23,42,0.95)', zIndex: 10, borderRadius: '12px', overflow: 'hidden', marginBottom: '4px', border: '1px solid var(--border)', backdropFilter: 'blur(20px)', maxHeight: '200px', overflowY: 'auto'}}>
+                {fromSuggestions.map((p, i) => (
+                  <div key={i} onClick={() => selectFrom(p)} style={{padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)', transition: 'all 0.2s'}}>
+                    📍 {p.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{position: 'relative'}}>
+            <input className="input-field" placeholder="🏁 Haraya gedirsən?" value={toPlace}
+              onChange={e => handleToChange(e.target.value)} />
+            {toSuggestions.length > 0 && (
+              <div style={{position: 'absolute', bottom: '100%', left: 0, right: 0, background: 'rgba(15,23,42,0.95)', zIndex: 10, borderRadius: '12px', overflow: 'hidden', marginBottom: '4px', border: '1px solid var(--border)', backdropFilter: 'blur(20px)', maxHeight: '200px', overflowY: 'auto'}}>
+                {toSuggestions.map((p, i) => (
+                  <div key={i} onClick={() => selectTo(p)} style={{padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)'}}>
+                    🏁 {p.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button className="btn btn-primary" onClick={calculateRoute} disabled={loading || !fromPlace || !toPlace} style={{width: '100%'}}>
+            {loading ? '⏳ AI Hesablayır...' : '✨ Marşrutu Hesabla'}
+          </button>
+        </div>
+      </div>
+
+      {/* ═══ RESULT PANEL ═══ */}
       {routeResult && (
-        <>
-          <div className="map-container" style={{height:'35vh'}}>
-            <MapContainer center={[40.3900, 49.8600]} zoom={12} scrollWheelZoom={true}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              {routeLine.length === 2 && (
-                <>
-                  <Marker position={routeLine[0]}><Popup>Başlanğıc</Popup></Marker>
-                  <Marker position={routeLine[1]}><Popup>Son nöqtə</Popup></Marker>
-                  <Polyline positions={routeLine} pathOptions={{color:'#00d4ff',weight:4,dashArray:'10 6'}} />
-                </>
-              )}
-            </MapContainer>
+        <div className="glass-panel" style={{position: 'absolute', bottom: '88px', left: '16px', right: '16px', padding: '18px', zIndex: 500, animation: 'slideUp 0.5s ease'}}>
+          {/* Green Wave Badge */}
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+              <span style={{fontSize: '18px'}}>🌊</span>
+              <h3 style={{margin: 0, fontSize: '15px', fontWeight: 900, color: 'white'}}>Yaşıl Dalğa</h3>
+            </div>
+            <span className="badge badge-green">Aktiv</span>
           </div>
 
-          <div className="stat-grid">
-            <div className="stat-box">
-              <div className="stat-value" style={{color:'var(--accent)'}}>{routeResult.distanceKm}</div>
-              <div className="stat-label">km məsafə</div>
+          {/* Stats Row */}
+          <div style={{display: 'flex', gap: '8px', marginBottom: '14px'}}>
+            <div style={{flex: 1, background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '10px', textAlign: 'center', border: '1px solid var(--border)'}}>
+              <div style={{fontSize: '18px', fontWeight: 900, color: 'white'}}>{routeResult.distanceKm}</div>
+              <div style={{fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600}}>KM</div>
             </div>
-            <div className="stat-box">
-              <div className="stat-value" style={{color:'var(--accent-green)'}}>{routeResult.greenWaveTimeMinutes}</div>
-              <div className="stat-label">dəq (Yaşıl Dalğa)</div>
+            <div style={{flex: 1, background: 'rgba(16,185,129,0.08)', borderRadius: '12px', padding: '10px', textAlign: 'center', border: '1px solid rgba(16,185,129,0.2)'}}>
+              <div style={{fontSize: '18px', fontWeight: 900, color: '#34d399'}}>-{routeResult.greenWave.timeSavedMinutes}</div>
+              <div style={{fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600}}>DƏQ</div>
             </div>
-            <div className="stat-box">
-              <div className="stat-value" style={{color:'var(--accent-yellow)'}}>{routeResult.trafficLightsOnRoute}</div>
-              <div className="stat-label">işıqfor</div>
+            <div style={{flex: 1, background: 'rgba(59,130,246,0.08)', borderRadius: '12px', padding: '10px', textAlign: 'center', border: '1px solid rgba(59,130,246,0.2)'}}>
+              <div style={{fontSize: '18px', fontWeight: 900, color: '#60a5fa'}}>{routeResult.greenWave.optimalSpeed}</div>
+              <div style={{fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600}}>KM/S</div>
             </div>
-            <div className="stat-box">
-              <div className="stat-value" style={{color:'var(--accent-red)'}}>{routeResult.normalTimeMinutes}</div>
-              <div className="stat-label">dəq (adi)</div>
+            <div style={{flex: 1, background: 'rgba(16,185,129,0.08)', borderRadius: '12px', padding: '10px', textAlign: 'center', border: '1px solid rgba(16,185,129,0.2)'}}>
+              <div style={{fontSize: '18px', fontWeight: 900, color: '#34d399'}}>⛽{routeResult.greenWave.fuelSavedPercent}%</div>
+              <div style={{fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600}}>QƏNAƏT</div>
             </div>
           </div>
 
-          <div className="greenwave-box">
-            <h4>🌊 Yaşıl Dalğa Tövsiyəsi</h4>
-            <div className="greenwave-speed">{routeResult.greenWave.optimalSpeed}</div>
-            <div className="greenwave-unit">km/s tövsiyə olunan sürət</div>
-            <p style={{marginTop:'10px'}}>{routeResult.greenWave.message}</p>
+          {/* AI Message */}
+          <div style={{fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5, padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border)'}}>
+            <span style={{color: '#60a5fa', fontWeight: 700}}>🤖 AI Tövsiyə:</span> {routeResult.greenWave.message}
+            {' '}Bu sizə <strong style={{color: '#34d399'}}>{routeResult.greenWave.timeSavedMinutes} dəq</strong> vaxt 
+            və <strong style={{color: '#34d399'}}>{routeResult.greenWave.co2Saved || '0.8'} kq</strong> CO₂ qənaət edəcək.
           </div>
-
-          <div className="stat-grid">
-            <div className="stat-box">
-              <div className="stat-value" style={{color:'var(--accent-green)'}}>⏱️ {routeResult.greenWave.timeSavedMinutes}</div>
-              <div className="stat-label">dəqiqə qənaət</div>
-            </div>
-            <div className="stat-box">
-              <div className="stat-value" style={{color:'var(--accent-green)'}}>⛽ {routeResult.greenWave.fuelSavedPercent}%</div>
-              <div className="stat-label">yanacaq qənaəti</div>
-            </div>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );
